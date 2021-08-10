@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <meta name="description" content="Use Viewer to start building new applications or easily embed Cesium into existing applications.">
+    <meta name="cesium-sandcastle-labels" content="Beginner, Showcases">
+    <title>Cesium Demo</title>
+    <script type="text/javascript" src="../Sandcastle-header.js"></script>
+    <script type="text/javascript" src="../../../Build/CesiumUnminified/Cesium.js" nomodule></script>
+    <script type="module" src="../load-cesium-es6.js"></script>
+</head>
+<body class="sandcastle-loading" data-sandcastle-bucket="bucket-requirejs.html">
+<script src="http://code.jquery.com/jquery-3.4.1.min.js"></script>
+<script src="http://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>   
+
+    <style>
+    @import url(../templates/bucket.css);
+    #toolbar {
+        background: rgba(42, 42, 42, 0.8);
+        padding: 4px;
+        border-radius: 4px;
+    }
+    #toolbar input {
+        vertical-align: middle;
+        padding-top: 2px;
+        padding-bottom: 2px;
+    }
+    .cesium-infoBox {
+        width: 80%;
+        max-width: none;
+    }
+</style>
+<div id="cesiumContainer" class="fullSize"></div>
+<div id="loadingOverlay"><h1>Loading...</h1></div>
+<div id="toolbar"><div>Height</div>
+    <input type="range" min="-100.0" max="100.0" step="1" data-bind="value: height, valueUpdate: 'input'">
+    <input type="text" size="5" data-bind="value: height">
+</div>
+<script id="cesium_sandcastle_script">
+function startup(Cesium) {
+    'use strict';
+//Sandcastle_Begin
+// set the cesium token and map token
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwZTdlNGQxNy03MjJjLTQ2ZjItYjc3MC0zZmMzOWRkZTZkNDYiLCJpZCI6MzczMSwic2NvcGVzIjpbImFzciIsImdjIl0sImlhdCI6MTUzODY1MjA0OH0.cy2FnkM4c7dUFQJrrAtKOQtJyFuN1UrLMiBAwUjbs0k';
+    Cesium.BingMapsApi.defaultAccessTokenKey ='AtnrXO-GaWfQWtvkf7fq4WHB0bQ7ncFVvLmVS5oAytmnTEVfFnzzTulmkjpqFV3N';
+    
+    var viewer = new Cesium.Viewer('cesiumContainer', {
+    selectionIndicator : false,
+});
+
+    viewer.scene.globe.enableLighting = false;
+    viewer.scene.globe.depthTestAgainstTerrain = true;   
+    var iframe = document.getElementsByClassName('cesium-infoBox-iframe')[0];
+    iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-popups allow-forms'); 
+    var pinBuilder = new Cesium.PinBuilder();
+
+    
+     
+    // set the initial position in taiwan
+    var initialPosition = new Cesium.Cartesian3.fromDegrees(120.56115, 23.506,  1000000);
+    var initialOrientation = new Cesium.HeadingPitchRoll.fromDegrees(0, -90, 0);
+    var homeCameraView = 
+    {
+         destination : initialPosition,
+         orientation : 
+         {
+         heading : initialOrientation.heading,
+         pitch : initialOrientation.pitch,
+         roll : initialOrientation.roll
+         }
+    };
+
+    // Set the initial view
+     viewer.scene.camera.setView(homeCameraView);
+
+    // Add some camera flight animation options
+     homeCameraView.duration = 2.0;
+     homeCameraView.maximumHeight = 2000;
+     homeCameraView.pitchAdjustHeight = 2000;
+     homeCameraView.endTransform = Cesium.Matrix4.IDENTITY;
+    // // Override the default home button
+     viewer.homeButton.viewModel.command.beforeExecute.addEventListener(function (e) {
+         e.cancel = true;
+         viewer.scene.camera.flyTo(homeCameraView);
+         viewer.entities.removeAll();
+     });
+
+
+////////////////////////////////////////////////
+//3d models in map
+////////////////////////////////////////////////     
+
+  //add building information
+
+
+
+    // create model function     
+    function createModel(url,degrees1,degrees2,height,heading,pitching,roll,scale) {
+       viewer.entities.removeAll();
+       var position = Cesium.Cartesian3.fromDegrees(degrees1, degrees2, height);
+       var hpr = new Cesium.HeadingPitchRoll(heading,pitching,roll);
+       var modelMatrix=Cesium.Transforms.headingPitchRollToFixedFrame(position,hpr);
+       var model = viewer.scene.primitives.add(Cesium.Model.fromGltf(
+       {
+           url : url,
+           modelMatrix : modelMatrix,
+           scale :scale,
+           castShadows: false,
+           receiveShadows: false,
+       }));
+    } 
+
+    //add hosipital entity
+    function createHospital(hpname,hpposition,data1,data2,data3){
+       var pinBuilder = new Cesium.PinBuilder();
+       var color ;
+        if (data3>80){
+            color = Cesium.Color.RED;
+        }else if(data3>50){
+            color = Cesium.Color.YELLOW;
+        }else{color = Cesium.Color.GREEN;}
+       viewer.entities.add({        
+           name: hpname,
+           position: hpposition,
+           description:'<table border="1"><tr><td>急性保險病床數</td><td>'+data1+'</td></tr><tr><td>急性病床數</td><td>'+data2+'</td></tr><tr><td>急性保險病床比率</td><td>'+data3+'%'+'</td></tr></table>',
+           billboard:
+           {
+               color : color,
+               image:'../Source/ICON/PNG/HOSPITAL-COLOR.png',
+               scale : 0.1,
+               verticalOrigin : Cesium.VerticalOrigin.BOTTOM
+
+           }
+      });
+    }
+
+  
+
+
+    //維冠大樓
+    function addtileset1(){
+        viewer.entities.removeAll();
+        var tileset = viewer.scene.primitives.add(new Cesium.Cesium3DTileset({
+        url: '../Source/SampleData/Models/Scene/Production_6(Cesium).json',
+        }));
+        var planPin = viewer.entities.add(
+            {
+                id:'id',
+                name:"SLAM室內圖",
+                description: '<iframe  width="1000px" height="1000px" src="../Source/SampleData/slam1.jpg">',
+                position : Cesium.Cartesian3.fromDegrees(120.2613004,23.0051432,40),
+                billboard : 
+                {
+                    image : '../Source/ICON/PNG/ROBOTIC.png',
+                    verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+                    scale : 0.1
+                }
+             });
+        var questionPin = viewer.entities.add({
+        name : '失聯',
+        description:'<table border="1"><tr><td>失聯人數</td><td>10</td></tr></table>',
+        position : Cesium.Cartesian3.fromDegrees(120.2611004,23.0052432,40),
+        billboard : {
+            image : pinBuilder.fromText('?', Cesium.Color.BLACK, 48).toDataURL(),
+            verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+            scale : 1.5
+        }
+        });
+        //Create a red pin representing a hospital from the maki icon set.
+        var rescure = viewer.entities.add({
+            name : '待救生還者',
+            description:'<table border="1"><tr><td>待救人數</td><td>20</td></tr></table>',
+            position : Cesium.Cartesian3.fromDegrees(120.2612004,23.0051932,40),
+            billboard : {
+                image : pinBuilder.fromText('+', Cesium.Color.GREEN, 48).toDataURL(),
+                verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+                scale : 1.5
+            }
+        });
+        var remotecontrol = viewer.entities.add({
+            name : 'gpiotest',
+            description:'<iframe  width="1440px" height="900px" src="http://localhost:5000">',
+            position : Cesium.Cartesian3.fromDegrees(120.2611004,23.0052432,50),
+            billboard : {
+                image : pinBuilder.fromText('?', Cesium.Color.BLACK, 48).toDataURL(),
+                verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+                scale : 1.5
+            }
+           
+        });
+    
+            
+        viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0.0, -0.3, 0.0));
+    }   
+    //花蓮雲翠大樓
+    function addtileset2(){
+        viewer.entities.removeAll();
+        var tileset = viewer.scene.primitives.add(new Cesium.Cesium3DTileset({
+        url: '../Source/SampleData/Models/Hualien1/Production_2(Cesium).json',
+        }));
+         //adjust the building height
+        var viewModel = {
+        height: 0
+        };
+
+        Cesium.knockout.track(viewModel);
+        
+        var toolbar = document.getElementById('toolbar');
+        Cesium.knockout.cleanNode(toolbar);
+        Cesium.knockout.applyBindings(viewModel, toolbar);
+
+        tileset.readyPromise.then(function(tileset) {
+            viewer.scene.primitives.add(tileset);
+            viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0.0, -0.5, tileset.boundingSphere.radius * 2.0));
+        }).otherwise(function(error) {
+            console.log(error);
+        });
+
+        Cesium.knockout.getObservable(viewModel, 'height').subscribe(function(height) {
+            height = Number(height);
+            if (isNaN(height)) {
+                return;
+            }
+            var cartographic = Cesium.Cartographic.fromCartesian(tileset.boundingSphere.center);
+            var surface = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, 0.0);
+            var offset = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, height);
+            var translation = Cesium.Cartesian3.subtract(offset, surface, new Cesium.Cartesian3());
+            tileset.modelMatrix = Cesium.Matrix4.fromTranslation(translation);
+        });
+        if (!viewer.scene.pickPositionSupported) {
+            window.alert('This browser does not support pickPosition.');
+        }
+        var planPin = viewer.entities.add(
+            {
+                name:"SLAM室內圖",
+                description: '<iframe  width="1000px" height="1000px" src="../Source/SampleData/slam1.jpg">',
+                position : Cesium.Cartesian3.fromDegrees(120.2613004,23.0051432,40),
+                billboard : 
+                {
+                    image : pinBuilder.fromColor(Cesium.Color.ROYALBLUE, 48).toDataURL(),
+                    verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+                    scale : 2
+                }
+             });
+        
+        viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0.0, -0.3, 0.0));
+    }    
+    
+
+    // CAUTION: Only disable iframe sandbox if the descriptions come from a trusted source.
+    viewer.infoBox.frame.setAttribute('sandbox', 'allow-same-origin allow-popups allow-forms allow-scripts allow-top-navigation');
+    
+    var entity ;
+    //安南活動中心
+    function add_gym(){
+        createModel('../Source/SampleData/Models/test1/scene.gltf',120.208000,23.032460,5,0,1.5,0,0.5 );
+        
+        var planpin = viewer.entities.add(
+        {
+            id :"360picture",
+            name:"活動中心全景圖",
+            description: '<iframe src="https://www.360cities.net/embed_iframe/panorama_tmp-8049" width="1000" height="1000" frameborder="0" bgcolor="#000000" target="_blank" allowfullscreen webkitallowfullscreen mozallowfullscreen></iframe><br/><a title="Panorama photos of 安西里活動中心 on 360cities.net" href="https://www.360cities.net/image/panorama_tmp-8049">安西里活動中心</a>',
+            position : Cesium.Cartesian3.fromDegrees(120.20800,23.032478,15),
+            billboard : 
+            {
+                image : pinBuilder.fromColor(Cesium.Color.ROYALBLUE, 48).toDataURL(),
+                verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+            }
+            
+         });
+         
+        var planpin2 =viewer.entities.add(
+        {
+            id :"streaming",
+            name:"活動中心直播影片",
+            description:'<iframe width="1000" height="1000" src="https://www.youtube.com/embed/Bs1ZcKhnxSo" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>',
+            position: Cesium.Cartesian3.fromDegrees(120.20800,23.032500,15),
+            billboard:
+            {
+                image : pinBuilder.fromColor(Cesium.Color.GREEN, 48).toDataURL(),
+                verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+            }          
+        });
+        
+                 
+        viewer.camera.flyTo({
+            destination : Cesium.Cartesian3.fromDegrees(120.208000,23.032460,100)
+        });
+    }
+
+
+
+
+
+
+    //災難測試場景
+    function add_disasterscene(){
+        var latitude = 23.10833;
+        var longitude = 120.155;
+        createModel('../Source/SampleData/Models/disaster1.glb',longitude,latitude,3,0,1.5,0,0.5 );
+        
+        var robotic = viewer.entities.add({
+                name : 'interface',
+                //description:'<iframe  width="1000px" height="1000px" src="../Source/SampleData/slam1.jpg">',
+                description:'<iframe  width="1440px" height="900px" src="http://localhost:5000">',
+                position : Cesium.Cartesian3.fromDegrees(120.15505,23.10829,4),
+                billboard : {
+                    image : pinBuilder.fromText('?', Cesium.Color.BLACK, 48).toDataURL(),
+                    verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+                    scale : 1.5
+                }
+
+            });
+        var index=1 ,bool = false;
+            robotic.imageClock=setInterval(function () {
+                if(robotic!=null){
+                    index+=1;
+                    robotic.billboard.show = bool ;
+                    bool = true;
+                    if(index>3){
+                        index=1;
+                        bool = false;
+                    }
+                   
+                    
+                } 
+            }, 300);
+
+        viewer.camera.flyTo({
+            destination : Cesium.Cartesian3.fromDegrees(longitude,latitude,100)
+        });
+    }
+
+        //add event listener which change the billboard.color when click the button
+    
+
+         // Since the viewer is newly constructed, the iframe is still about:blank.
+        // This listens for the iframe to change to the Cesium description template,
+        // which only happens once at startup.
+        //
+viewer.selectedEntityChanged.addEventListener(function(entity) {
+            document.addEventListener('keydown', keyDownHandler, false);
+            function keyDownHandler(event){
+                if(event.keyCode == 20) {  
+                    try{
+                        entity.billboard.image = pinBuilder.fromText('?', Cesium.Color.BLACK, 48).toDataURL();
+                        entity.billboard.scale = 3;
+                        entity.description = '<iframe  width="1440px" height="900px" src="http://localhost:5000">';
+                        entity.name = "Interface";
+                        document.removeEventListener('keydown', keyDownHandler, false);
+                    }catch(exception){
+                        console.log('error');
+                        document.removeEventListener('keydown', keyDownHandler, false);
+                    }   
+                }else if(event.keyCode==17){             
+                    try{
+                        entity.billboard.image = pinBuilder.fromText('+', Cesium.Color.GREEN, 48).toDataURL();
+                        entity.billboard.scale = 3;
+                        entity.description = '<iframe  width="1000px" height="1000px" src="../Source/SampleData/victim.png">';
+                        entity.name = "Map";
+                        document.removeEventListener('keydown', keyDownHandler, false);
+                    }catch(exception){
+                        console.log('error');
+                        document.removeEventListener('keydown', keyDownHandler, false);
+                    }
+                }
+            }    
+        });
+    
+
+function addtileset3() {
+
+	// Bounding sphere
+	var boundingSphere = new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(120.221197, 22.99556662, 84.86832984), 25.0);
+
+
+
+    viewer.camera.flyToBoundingSphere(boundingSphere);
+	// Set custom initial position
+	viewer.camera.flyToBoundingSphere(boundingSphere, {duration: 0});
+
+	// Add tileset. Do not forget to reduce the default screen space error to 1
+	var tileset = viewer.scene.primitives.add(new Cesium.Cesium3DTileset({
+	url: '../Source/SampleData/Models/NCKU_20181201/Production_2(Cesium).json',
+	}));
+
+	tileset.readyPromise.then(function(tileset) {
+    var height = -20.0; // Set this to anything
+    var cartographic = Cesium.Cartographic.fromCartesian(tileset.boundingSphere.center);
+    var surface = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, 0.0);
+    var offset = Cesium.Cartesian3.fromRadians(cartographic.longitude, cartographic.latitude, height);
+    var translation = Cesium.Cartesian3.subtract(offset, surface, new Cesium.Cartesian3());
+    tileset.modelMatrix = Cesium.Matrix4.fromTranslation(translation);
+	});
+    
+    
+    var robotic = viewer.entities.add({
+            name : 'interface',
+            //description:'<iframe  width="1000px" height="1000px" src="../Source/SampleData/slam1.jpg">',
+            description:'<iframe  width="1440px" height="900px" src="http://localhost:5000">',
+            position : Cesium.Cartesian3.fromDegrees(120.22139,22.99661,20),
+            billboard : {
+                image : pinBuilder.fromText('?', Cesium.Color.BLACK, 48).toDataURL(),
+                verticalOrigin : Cesium.VerticalOrigin.BOTTOM,
+                scale : 3
+            }
+           
+        });
+    
+    var index=1 ,bool = false;
+            robotic.imageClock=setInterval(function () {
+                if(robotic!=null){
+                    index+=1;
+                    robotic.billboard.show = bool ;
+                    bool = true;
+                    if(index>3){
+                        index=1;
+                        bool = false;
+                    }
+                   
+                    
+                } 
+            }, 300);
+
+
+    }
+
+
+
+/////////////////////////////////////////////
+//標記工具
+/////////////////////////////////////////////
+
+    viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+    function createPoint(worldPosition) {
+        var point = viewer.entities.add({
+            position : worldPosition,
+            point : {
+                color : Cesium.Color.RED,
+                pixelSize : 10,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+            }
+        });
+        return point;
+    }
+    var drawingMode = 'line';
+    function drawShape(positionData) {
+        var shape;
+        if (drawingMode === 'line') {
+            shape = viewer.entities.add({
+                polyline : {
+                    positions : positionData,
+                    clampToGround : true,
+                    material: new Cesium.ColorMaterialProperty(Cesium.Color.YELLOW),
+                    width : 20
+                }
+            });
+        }
+        else if (drawingMode === 'polygon(red)') {
+            shape = viewer.entities.add({
+                polygon: {
+                    hierarchy: positionData,
+                    material: new Cesium.ColorMaterialProperty(Cesium.Color.RED.withAlpha(0.3))
+                }
+            });}
+        else if (drawingMode === 'polygon(green)') {
+            shape = viewer.entities.add({
+                polygon: {
+                    hierarchy: positionData,
+                    material: new Cesium.ColorMaterialProperty(Cesium.Color.GREEN.withAlpha(0.3))
+                }
+            });
+        }
+        return shape;
+    }
+    var activeShapePoints = [];
+    var activeShape;
+    var floatingPoint;
+    var handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    handler.setInputAction(function(event) {
+        // We use `viewer.scene.pickPosition` here instead of `viewer.camera.pickEllipsoid` so that
+        // we get the correct point when mousing over terrain.
+        var earthPosition = viewer.scene.pickPosition(event.position);
+        // `earthPosition` will be undefined if our mouse is not over the globe.
+            if(!drawingMode){
+                return;
+        }
+        if (Cesium.defined(earthPosition)) {
+            if (activeShapePoints.length === 0) {
+                floatingPoint = createPoint(earthPosition);
+                activeShapePoints.push(earthPosition);
+                var dynamicPositions = new Cesium.CallbackProperty(function () {
+                    if (drawingMode != 'line') {
+                        return new Cesium.PolygonHierarchy(activeShapePoints);
+                    }
+                    return activeShapePoints;
+                }, false);
+                activeShape = drawShape(dynamicPositions);
+            }
+            activeShapePoints.push(earthPosition);
+            createPoint(earthPosition);
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    handler.setInputAction(function(event) {
+        if (Cesium.defined(floatingPoint)) {
+            var newPosition = viewer.scene.pickPosition(event.endPosition);
+            if (Cesium.defined(newPosition)) {
+                floatingPoint.position.setValue(newPosition);
+                activeShapePoints.pop();
+                activeShapePoints.push(newPosition);
+            }
+        }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+    // Redraw the shape so it's not dynamic and remove the dynamic shape.
+    function terminateShape() {
+        activeShapePoints.pop();
+        drawShape(activeShapePoints);
+        viewer.entities.remove(floatingPoint);
+        viewer.entities.remove(activeShape);
+        floatingPoint = undefined;
+        activeShape = undefined;
+        activeShapePoints = [];
+    }
+    handler.setInputAction(function(event) {
+        terminateShape();
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+
+
+
+function CustomLine() {    
+    this.positions=[];
+    this.markers=[];
+
+    var that=this;
+
+    this.line=viewer.entities.add({
+        polyline : {
+            // This callback updates positions each frame.
+            positions : new Cesium.CallbackProperty(function(time, result) {
+                return that.positions;
+            }, false),
+            width : 3,
+            clampToGround:true,
+            material : Cesium.Color.YELLOW
+        }
+    });
+}
+
+
+    CustomLine.prototype.addPoint=function (position) {
+        var that=this;
+        var n=this.positions.length;
+        this.positions[n]=position;
+        var pinBuilder = new Cesium.PinBuilder();
+
+        var marker=viewer.entities.add({
+            position : new Cesium.CallbackProperty(function(time, result) {
+                return that.positions[n];
+            }, false),
+            billboard : {
+                image : pinBuilder.fromText(n+1, Cesium.Color.RED, 48).toDataURL(),
+                heightReference:Cesium.HeightReference.CLAMP_TO_GROUND,
+                //verticalOrigin : Cesium.VerticalOrigin.BOTTOM
+            }
+        });
+
+        this.markers.push(marker);
+    };
+    CustomLine.prototype.removeAll=function () {
+        for(var i=0;i<this.markers.length;i++){
+            viewer.entities.remove(this.markers[i]);
+        }
+
+        this.markers=[];
+        this.positions=[];
+    };
+
+    var customLine=new CustomLine();
+    var drawing=false;
+
+    var handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    handler.setInputAction(function(event) {
+        if(!drawing){
+            return;
+        }
+        var mousePosition = viewer.scene.pickPosition(event.position);
+        if (Cesium.defined(mousePosition)) {
+            customLine.addPoint(mousePosition);
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    handler.setInputAction(function(event) {    
+            if(!drawing){
+                return;
+            }
+        var mousePosition = viewer.scene.pickPosition(event.endPosition);
+        if (Cesium.defined(mousePosition)) {        
+            var n=customLine.positions.length;
+            if(n===0){
+                customLine.addPoint(mousePosition);
+            }else {
+                customLine.positions[n-1]=mousePosition;
+            }
+        }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    handler.setInputAction(function(event) {
+        if(!drawing){
+            return;
+        }
+
+        drawing=false;    
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK );
+
+
+//////////////////////////////////////////
+//roslaunch cartographer
+//////////////////////////////////////////
+    /*
+    var handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+            handler.setInputAction(function (movement) {
+                var pick = viewer.scene.pick(movement.position);
+                if (Cesium.defined(pick) && (pick.id.id === 'id')) {
+                         $.ajax({ 
+               url: 'http://localhost:8082/ajax',
+               type: 'get',
+               cache: false, 
+               data: { field1: 1, field2: 2 }, 
+               success: function(data){
+                  alert('Success!')
+               }
+               , error: function(jqXHR, textStatus, err){
+                   alert('text status '+textStatus+', err '+err)
+               }
+            })
+                    
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+*/
+
+//////////////////////////////////////
+//hosipital information
+//////////////////////////////////////
+
+//hp1=醫療中心等級醫院
+    const hp1name = [   //0            1          2         3           4
+                        "台大醫院","台大兒醫","三軍總醫院","臺北榮總","國泰醫院",
+                        //5            6          7         8         9
+                        "馬偕台北","馬偕兒醫","新光醫院","亞東醫院","馬偕淡水",
+                        //10                  11           12          13         14
+                        "萬芳醫院(台北)","台北長庚醫院","林口長庚醫院","台中榮總","中國兒醫",
+                        //15           16     17       18        19
+                        "中山醫院","中國附醫","彰基","彰基兒醫","成大醫院",
+                        //20                     21                22          23            24
+                        "奇美醫院(台南南區)","奇美醫院(台南永康)","高雄榮總","高雄長庚醫院","高醫大附醫",
+                        //25
+                        "慈濟醫院(花蓮)"
+
+                    ];
+    const hp1position = [];
+    hp1position[0] = new Cesium.Cartesian3.fromDegrees(121.518969,25.040678,0);
+    hp1position[1] = new Cesium.Cartesian3.fromDegrees(121.518703,25.044171,0);
+    hp1position[2] = new Cesium.Cartesian3.fromDegrees(121.592263,25.071708,0);
+    hp1position[3] = new Cesium.Cartesian3.fromDegrees(121.520134,25.120336,0);
+    hp1position[4] = new Cesium.Cartesian3.fromDegrees(121.553638,25.036883,0); 
+    hp1position[5] = new Cesium.Cartesian3.fromDegrees(121.522216,25.058677,0); 
+    hp1position[6] = new Cesium.Cartesian3.fromDegrees(120.988108,24.778289,0);
+    hp1position[7] = new Cesium.Cartesian3.fromDegrees(121.520155,25.096404,0);
+    hp1position[8] = new Cesium.Cartesian3.fromDegrees(121.452663,24.996988,0);
+    hp1position[9] = new Cesium.Cartesian3.fromDegrees(121.461892,25.138886,0);
+    hp1position[10] = new Cesium.Cartesian3.fromDegrees(121.558140,24.999901,0);
+    hp1position[11] = new Cesium.Cartesian3.fromDegrees(121.549625,25.055415,0);
+    hp1position[12] = new Cesium.Cartesian3.fromDegrees(121.367572,25.061085,0);
+    hp1position[13] = new Cesium.Cartesian3.fromDegrees(120.604603,24.184795,0);
+    hp1position[14] = new Cesium.Cartesian3.fromDegrees(120.988108,24.778289,0);
+    hp1position[15] = new Cesium.Cartesian3.fromDegrees(121.549910,25.036681,0);
+    hp1position[16] = new Cesium.Cartesian3.fromDegrees(120.680514,24.157747,0);
+    hp1position[17] = new Cesium.Cartesian3.fromDegrees(120.544682,24.071142,0);
+    hp1position[18] = new Cesium.Cartesian3.fromDegrees(120.543507,24.071160,0);
+    hp1position[19] = new Cesium.Cartesian3.fromDegrees(120.219567,23.001965,0);
+    hp1position[20] = new Cesium.Cartesian3.fromDegrees(120.221937,23.020777,0);
+    hp1position[21] = new Cesium.Cartesian3.fromDegrees(120.221837,23.020756,0);
+    hp1position[22] = new Cesium.Cartesian3.fromDegrees(120.322504,22.677537,0);
+    hp1position[23] = new Cesium.Cartesian3.fromDegrees(120.356838,22.650063,0);
+    hp1position[24] = new Cesium.Cartesian3.fromDegrees(120.309777,22.647373,0);
+    hp1position[25] = new Cesium.Cartesian3.fromDegrees(121.592515,23.995097,0);
+
+    const hp1insurance_bed = [
+1622,
+230,
+1262,
+1972,
+418,
+455,
+134,
+389,
+763,
+663,
+407,
+94,
+2312,
+1000,
+178,
+612,
+1212,
+779,
+181,
+913,
+645,
+645,
+895,
+1381,
+952,
+476,
+];
+        
+    const hp1bed = [
+2117,
+255,
+1676,
+2608,
+653,
+757,
+186,
+647,
+1139,
+868,
+631,
+145,
+3123,
+1359,
+216,
+1003,
+1709,
+1071,
+199,
+1193,
+1073,
+1073,
+1319,
+1883,
+1481,
+669,
+];
+    const hp1insurance_bed_ration = [
+76.62,
+90.20,
+75.30,
+75.61,
+64.01,
+60.11,
+72.04,
+60.12,
+66.99,
+76.38,
+64.50,
+64.83,
+74.03,
+73.58,
+82.41,
+61.02,
+70.92,
+72.74,
+90.95,
+76.53,
+60.11,
+60.11,
+67.85,
+73.34,
+64.28,
+71.15,
+];
+
+/////////////////////////////////////////////////////////
+//position
+/////////////////////////////////////////////////////////
+function ShowCartographic(){
+    var entity = viewer.entities.add({
+        label : {
+            show : false,
+            showBackground : true,
+            font : '20px monospace',
+            horizontalOrigin : Cesium.HorizontalOrigin.LEFT,
+            verticalOrigin : Cesium.VerticalOrigin.TOP,
+            pixelOffset : new Cesium.Cartesian2(15, 0)
+        }
+    });
+
+    // Mouse over the globe to see the cartographic position
+    handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction(function(movement) {
+        var cartesian = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
+        if (cartesian) {
+            var cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+            var longitudeString = Cesium.Math.toDegrees(cartographic.longitude).toFixed(2);
+            var latitudeString = Cesium.Math.toDegrees(cartographic.latitude).toFixed(2);
+
+            entity.position = cartesian;
+            entity.label.show = true;
+            entity.label.text =
+                'Lon: ' + ('   ' + longitudeString).slice(-7) + '\u00B0' +
+                '\nLat: ' + ('   ' + latitudeString).slice(-7) + '\u00B0';
+        } else {
+            entity.label.show = false;
+        }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+};
+
+function PickPosition(){
+    
+     var labelEntity = viewer.entities.add({
+        label : {
+            show : false,
+            showBackground : true,
+            font : '20px monospace',
+            horizontalOrigin : Cesium.HorizontalOrigin.LEFT,
+            verticalOrigin : Cesium.VerticalOrigin.TOP,
+            pixelOffset : new Cesium.Cartesian2(15, 0)
+        }
+    });
+
+    // Mouse over the globe to see the cartographic position
+    handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction(function(movement) {
+
+        var foundPosition = false;
+
+        var scene = viewer.scene;
+        if (scene.mode !== Cesium.SceneMode.MORPHING) {
+            var pickedObject = viewer.scene.pick(movement.endPosition);
+            if (scene.pickPositionSupported && Cesium.defined(pickedObject)){
+                var cartesian = viewer.scene.pickPosition(movement.endPosition);
+
+                if (Cesium.defined(cartesian)) {
+                    var cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                    var longitudeString = Cesium.Math.toDegrees(cartographic.longitude).toFixed(5);
+                    var latitudeString = Cesium.Math.toDegrees(cartographic.latitude).toFixed(5);
+                    var heightString = cartographic.height.toFixed(2);
+
+                    labelEntity.position = cartesian;
+                    labelEntity.label.show = true;
+                    labelEntity.label.text =
+                        'Lon: ' + ('   ' + longitudeString) + '\u00B0' +
+                        '\nLat: ' + ('   ' + latitudeString)+ '\u00B0' +
+                        '\nAlt: ' + ('   ' + heightString).slice(-7) + 'm';
+
+                    labelEntity.label.eyeOffset = new Cesium.Cartesian3(0.0, 0.0, -cartographic.height * (scene.mode === Cesium.SceneMode.SCENE2D ? 1.5 : 1.0));
+
+                    foundPosition = true;
+                }
+            }
+        }
+
+        if (!foundPosition) {
+            labelEntity.label.show = false;
+        }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+};
+
+
+
+////////////////////////////////////////////
+//tool bar manu
+///////////////////////////////////////////
+
+    Sandcastle.addToolbarMenu([
+        {
+            text : 'Model',
+            onselect : function() {
+            viewer.entities.removeAll();
+            }
+        },
+        {
+        text : 'gym',
+        onselect : function() {
+            add_gym();
+            Sandcastle.highlight(add_gym);
+            }
+        },
+        {
+        text : '花蓮雲翠大樓',
+        onselect : function() {
+            addtileset2();
+            }
+        },
+        {
+        text : '維冠大樓',
+        onselect : function() {
+            addtileset1();            }
+        },
+        {text: 'NCKU',
+        onselect : function(){
+            addtileset3();
+        }
+        },
+        {
+            text:'disaster scene',
+            onselect: function(){
+                add_disasterscene();
+            }
+        }
+        
+    ]);
+
+    Sandcastle.addToolbarMenu([
+        {
+            text : 'toolbox',
+            onselect : function() {
+            viewer.entities.removeAll();
+            }
+        },
+        {
+            text : 'ajaxButton',
+            onselect : function(){
+            var httpRequest;
+                httpRequest = new XMLHttpRequest();
+                if (!httpRequest) 
+                {
+                    alert('Giving up :( Cannot create an XMLHTTP instance');
+                    return false;
+                }
+                httpRequest.onreadystatechange = alertContents;
+                httpRequest.open('GET', '../Source/hospital.json');
+                httpRequest.send();
+            
+            function alertContents() 
+               {
+                if (httpRequest.readyState === XMLHttpRequest.DONE) 
+                    {
+                    if (httpRequest.status === 200) 
+                        {
+                            alert(httpRequest.responseText);
+                        } else {alert('There was a problem with the request.');}
+                    }
+                }
+            }      
+            
+        },
+        {
+            text : 'live streaming',
+            onselect : function(){
+            window.open("https://www.youtube.com/embed/Bs1ZcKhnxSo");
+            }
+        },
+        {
+            text : 'eoc',
+            onselect : function(){
+            window.open("https://www.nhi.gov.tw/SysService/SevereAcuteHospital.aspx?menu=18&menu_id=683&WD_ID=1119");
+            }
+        },
+        {
+            text : 'hospital',
+            onselect : function(){
+                           for(var i=0; i<26; i++){
+                               createHospital(hp1name[i], hp1position[i], hp1insurance_bed[i], hp1bed[i], hp1insurance_bed_ration[i]);
+    //parseInt(Math.random()*1000)
+                           }
+                       }
+        }
+    ]);
+
+
+    var markingTool = [
+    {
+    text : 'Marking Tool',
+        onselect : function(){
+         viewer.scene.globe.depthTestAgainstTerrain = true;   
+         drawingMode = false;
+         viewer.entities.removeAll();
+
+        
+        }
+},
+    {
+    text : 'Draw Lines',
+    onselect : function() {
+        if (!Cesium.Entity.supportsPolylinesOnTerrain(viewer.scene)) {
+            window.alert('This browser does not support polylines on terrain.');
+        }
+
+        terminateShape();
+        drawingMode = 'line';
+    }
+}, {
+    text : 'Draw Polygons(red)',
+    onselect : function() {
+        terminateShape();
+        drawingMode = 'polygon(red)';
+    }},
+    {
+    text : 'Draw Polygons(green)',
+    onselect : function() {
+        terminateShape();
+        drawingMode = 'polygon(green)';
+    }},
+    {
+    text : 'StartDraw',
+    onselect : function() {
+         drawing=true;
+         customLine.removeAll();
+    }},      
+    {
+    text : 'StopDraw',
+    onselect : function() {
+         drawing=false;
+         customLine.removeAll();
+    }}
+    ];
+Sandcastle.addToolbarMenu(markingTool);
+
+var position = [
+    {
+        text:'position',
+        onselect : function(){
+         drawingMode = false;
+         viewer.entities.removeAll();
+
+        
+        }
+    },
+    {
+        text:'Show Cartographic',
+        onselect: function(){
+            //viewer.scene.globe.depthTestAgainstTerrain = false;
+            ShowCartographic();
+        }},
+    {
+        text:'PickPosition',
+        onselect: function(){
+            PickPosition();
+    }
+    }
+        ];
+        
+Sandcastle.addToolbarMenu(position);
+
+
+//Sandcastle_End
+    Sandcastle.finishedLoading();
+}
+if (typeof Cesium !== 'undefined') {
+    window.startupCalled = true;
+    startup(Cesium);
+}
+</script>
+</body>
+</html>
